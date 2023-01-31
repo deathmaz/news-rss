@@ -1,15 +1,26 @@
-use news_rss::category::Category;
+use std::path::PathBuf;
+
+use news_rss::config::Config;
 use news_rss::db::DB;
+use news_rss::greader::Greader;
 use news_rss::ui::UI;
+use news_rss::utils;
 
 fn main() {
-    DB::new()
-        .create_db()
-        .expect("Something went wrong while creating DB");
-    let category_list = vec![
-        Category::new("UaNews", vec![]),
-        Category::new("Telegram", vec![]),
-    ];
-    let mut ui = UI::new();
-    ui.create(category_list);
+    let path = PathBuf::from(format!("{}/config.toml", utils::get_config_dir()));
+    let config = Config::from(&path.display().to_string());
+    match config {
+        Ok(config) => {
+            DB::new()
+                .create_db()
+                .expect("Something went wrong while creating DB");
+            let greader = Greader::login(config).unwrap();
+            let mut ui = UI::new();
+            ui.create(greader);
+        }
+        Err(error) => println!(
+            "Something went wrong while reading config.toml file:\n{:#}",
+            error
+        ),
+    }
 }

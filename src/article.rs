@@ -1,27 +1,25 @@
 #[derive(Debug, Clone)]
 pub struct Article {
-    pub id: i64,
+    pub id: String,
     pub link: String,
     pub title: String,
     pub description: String,
     pub content: String,
     pub unread: i8,
-    pub feed_rss_link: String,
-    pub guid: String,
-    pub pub_date: Option<i64>,
+    pub feed_id: String,
+    pub pub_date: i64,
 }
 
 impl Article {
     pub fn new(
-        id: i64,
+        id: String,
         link: String,
         title: String,
         description: String,
         content: String,
         unread: i8,
-        feed_rss_link: String,
-        guid: String,
-        pub_date: Option<i64>,
+        feed_id: String,
+        pub_date: i64,
     ) -> Self {
         Self {
             id,
@@ -30,8 +28,7 @@ impl Article {
             description,
             content,
             unread,
-            feed_rss_link,
-            guid,
+            feed_id,
             pub_date,
         }
     }
@@ -42,6 +39,6 @@ impl Article {
 
     pub fn draw(&self) -> String {
         let unread = if self.unread() { "N" } else { " " };
-        format!("{} {} {}", self.pub_date.unwrap_or(0), unread, self.title,)
+        format!("{} {} {}", self.pub_date, unread, self.title,)
     }
 }

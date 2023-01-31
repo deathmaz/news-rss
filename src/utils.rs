@@ -1,7 +1,9 @@
 use crate::{category::Category, db::DB};
 use chrono::DateTime;
+use directories::UserDirs;
 use rss::Channel;
 use std::io;
+use std::path::PathBuf;
 use std::process::{Command, Output};
 
 pub fn fetch_feeds(category_list: &Vec<Category>) {
@@ -12,7 +14,9 @@ pub fn fetch_feeds(category_list: &Vec<Category>) {
             match output {
                 Ok(result) => {
                     let channel = Channel::read_from(&result.stdout[..]).unwrap();
-                    db.create_feed(channel, &feed_link).unwrap();
+                    // FIXME: fix this
+                    /* db.create_feed(channel, &feed_link, &category.title)
+                    .unwrap(); */
                 }
                 Err(e) => println!("Error, {}", e),
             }
@@ -27,4 +31,17 @@ pub fn fetch_page(url: String) -> io::Result<Output> {
 pub fn formatted_pub_date(date: &str) -> String {
     let parsed = DateTime::parse_from_rfc2822(date).unwrap();
     format!("{}", parsed.format("%d/%m/%Y %H:%M"))
+}
+
+pub fn get_config_dir() -> String {
+    let mut home = String::new();
+    if let Some(user_dirs) = UserDirs::new() {
+        match user_dirs.home_dir().to_str() {
+            Some(path) => home = path.to_string(),
+            None => panic!("Can't find home dir!"),
+        }
+    }
+    PathBuf::from(format!("{}/.config/news-rss", home))
+        .display()
+        .to_string()
 }
