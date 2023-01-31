@@ -1,7 +1,6 @@
 use crate::article::Article;
 use crate::feed::Feed;
 use crate::greader::Category;
-use chrono::DateTime;
 use rusqlite::{Connection, Result};
 
 pub struct DB {
@@ -52,13 +51,6 @@ impl DB {
             (),
         )?;
         Ok(())
-    }
-
-    fn date_to_timestamp(&self, date: String) -> String {
-        DateTime::parse_from_rfc2822(date.as_str())
-            .unwrap()
-            .timestamp()
-            .to_string()
     }
 
     pub fn create_feed(&self, params: CreateFeedParams) -> Result<()> {
@@ -138,7 +130,23 @@ impl DB {
                 WHERE f.feed_id = :feed_id AND a.unread = 1",
         )?;
         let count = stmt.query_row(&[(":feed_id", feed_id)], |row| {
-            Ok(FeedUnreadCount { count: row.get(0)? })
+            Ok(UnreadCount { count: row.get(0)? })
+        })?;
+
+        Ok(count.count)
+    }
+
+    pub fn get_category_unread_count(&self, category_id: &str) -> Result<i64> {
+        let mut stmt = self.conn.prepare(
+            "
+                SELECT COUNT(*)
+                FROM articles a
+                INNER JOIN feeds f ON a.feed_id = f.feed_id
+                INNER JOIN categories c ON f.category_id = c.id
+                WHERE c.id = :category_id AND a.unread = 1",
+        )?;
+        let count = stmt.query_row(&[(":category_id", category_id)], |row| {
+            Ok(UnreadCount { count: row.get(0)? })
         })?;
 
         Ok(count.count)
@@ -213,8 +221,7 @@ impl DB {
     } */
     pub fn get_articles_for_feed(&self, feed_id: &str) -> Result<Vec<Article>> {
         let mut stmt = self.conn.prepare(
-            "
-            SELECT
+            "SELECT
                 id      ,
                 link    ,
                 title       ,
@@ -226,7 +233,8 @@ impl DB {
             FROM
                 articles
             WHERE
-                feed_id = :feed_id",
+                feed_id = :feed_id
+            ORDER BY pub_date DESC",
         )?;
 
         let article_iter = stmt.query_map(&[(":feed_id", feed_id)], |row| {
@@ -437,6 +445,6 @@ pub struct CreateArticleParams {
     pub pub_date: i64,
 }
 
-pub struct FeedUnreadCount {
+pub struct UnreadCount {
     count: i64,
 }

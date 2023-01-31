@@ -5,6 +5,7 @@ use crate::greader::Greader;
 use crate::tree_entry::TreeEntry;
 use cursive::theme::{BorderStyle, Palette};
 use cursive::traits::With;
+use cursive::views::OnEventView;
 use cursive::{
     traits::*,
     views::{Dialog, LinearLayout, Panel, SelectView},
@@ -173,7 +174,11 @@ impl UI {
                 )
                 .child(
                     Dialog::new()
-                        .content(select.with_name("content").scrollable())
+                        .content(
+                            OnEventView::new(select.with_name("content").scrollable())
+                                .on_event('j', content_select_down)
+                                .on_event('k', content_select_up),
+                        )
                         .title("Content bar")
                         .with_name("panel")
                         .full_height()
@@ -199,11 +204,12 @@ fn build_tree(cat_list: Vec<Category>, tree: &mut TreeView<TreeEntry>) {
     );
 
     for category in cat_list {
+        let unread_count = db.get_category_unread_count(&category.id).unwrap();
         tree.insert_container_item(
             TreeEntry {
                 id: category.id.clone(),
                 title: category.label.to_string(),
-                unread_count: None,
+                unread_count: Some(unread_count),
             },
             Placement::After,
             0,
@@ -227,4 +233,16 @@ fn build_tree(cat_list: Vec<Category>, tree: &mut TreeView<TreeEntry>) {
     if tree.len() > 1 {
         tree.remove_item(0);
     }
+}
+
+fn content_select_down(s: &mut Cursive) {
+    s.call_on_name("content", move |view: &mut SelectView<Article>| {
+        view.select_down(1)
+    });
+}
+
+fn content_select_up(s: &mut Cursive) {
+    s.call_on_name("content", move |view: &mut SelectView<Article>| {
+        view.select_up(1)
+    });
 }

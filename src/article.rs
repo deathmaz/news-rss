@@ -1,3 +1,5 @@
+use chrono::{Local, TimeZone};
+
 #[derive(Debug, Clone)]
 pub struct Article {
     pub id: String,
@@ -38,7 +40,13 @@ impl Article {
     }
 
     pub fn draw(&self) -> String {
+        let pub_date = Local.timestamp_opt(self.pub_date, 0).unwrap();
         let unread = if self.unread() { "N" } else { " " };
-        format!("{} {} {}", self.pub_date, unread, self.title,)
+        format!(
+            "{} {} {}",
+            pub_date.format("%d/%m/%Y %H:%M"),
+            unread,
+            self.title,
+        )
     }
 }

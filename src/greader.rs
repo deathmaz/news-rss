@@ -8,7 +8,7 @@ use std::io::Result;
 use std::io::Write;
 use std::process::Command;
 
-const TOCKEN_PREFIX: &str = "Auth";
+const TOKEN_PREFIX: &str = "Auth";
 
 #[derive(Clone, Debug)]
 pub struct Greader {
@@ -43,7 +43,7 @@ impl Greader {
         let lines = out.lines();
         let mut token = String::from("");
         for item in lines {
-            if item.starts_with(TOCKEN_PREFIX) {
+            if item.starts_with(TOKEN_PREFIX) {
                 let parts: Vec<&str> = item.split("=").collect();
                 token = parts[1].trim().to_string();
                 break;
