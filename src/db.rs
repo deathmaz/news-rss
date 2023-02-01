@@ -1,6 +1,7 @@
 use crate::article::Article;
 use crate::feed::Feed;
 use crate::greader::Category;
+use crate::utils;
 use rusqlite::{Connection, Result};
 
 pub struct DB {
@@ -9,13 +10,19 @@ pub struct DB {
 
 impl DB {
     pub fn new() -> Self {
-        let conn =
-            Connection::open("news.db").expect("Something went wrong while opening database.");
+        let conn = Connection::open(format!("{}/news.db", utils::get_config_dir()))
+            .expect("Something went wrong while opening database.");
 
         Self { conn }
     }
 
     pub fn create_db(&self) -> Result<()> {
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS unread_articles (
+                id              TEXT PRIMARY KEY
+            )",
+            (),
+        )?;
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS categories (
                 id              TEXT PRIMARY KEY,
@@ -40,6 +47,7 @@ impl DB {
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS articles (
                 id            TEXT PRIMARY KEY,
+                short_id      INTEGER UNIQUE,
                 link          TEXT,
                 title         TEXT,
                 description   TEXT,
@@ -153,9 +161,14 @@ impl DB {
     }
 
     pub fn create_article(&self, params: CreateArticleParams) -> Result<()> {
+        let parts: Vec<&str> = params.id.split("/").collect();
+        // See: https://github.com/bazqux/bazqux-api#about-item-ids
+        // See: https://github.com/FreshRSS/FreshRSS/blob/edge/p/api/greader.php#L37-L39
+        let short_id = i64::from_str_radix(parts.last().unwrap(), 16).unwrap();
         self.conn.execute(
             "INSERT OR IGNORE INTO articles (
                 id ,
+                short_id ,
                 link       ,
                 title      ,
                 description,
@@ -164,10 +177,11 @@ impl DB {
                 feed_id    ,
                 pub_date
             ) values (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9
             )",
             [
                 params.id,
+                short_id.to_string(),
                 params.link,
                 params.title,
                 params.description,
@@ -415,6 +429,39 @@ impl DB {
                 id = ?",
         )?;
         stmt.execute([article_id])?;
+        Ok(())
+    }
+
+    pub fn add_unread_id(&self, id: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO unread_articles (
+                id
+            ) values (
+                ?1
+            )",
+            [id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_unread_articles(&self) -> Result<()> {
+        self.conn.execute("DELETE FROM unread_articles", ())?;
+        Ok(())
+    }
+
+    pub fn mark_articles_as_read_except(&self, article_ids: Vec<String>) -> Result<()> {
+        self.clear_unread_articles()?;
+        for id in article_ids {
+            self.add_unread_id(&id)?
+        }
+        let mut stmt = self.conn.prepare(
+            "UPDATE
+                articles
+            SET
+                unread = 0
+            WHERE unread != 0 AND short_id NOT IN (SELECT id FROM unread_articles)",
+        )?;
+        stmt.execute([])?;
         Ok(())
     }
 }

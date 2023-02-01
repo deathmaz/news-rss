@@ -64,7 +64,7 @@ impl Greader {
                 "-H",
                 &format!("Authorization:GoogleLogin auth={}", self.cltoken),
                 &format!(
-                    "{}/reader/api/0/stream/contents?s=user/-/label/Reddit&xt=user/-/state/com.google/read&n=1000&c={}&ot={}",
+                    "{}/reader/api/0/stream/contents?s=user/-/state/com.google/reading-list&xt=user/-/state/com.google/read&n=1000&r=n&c={}&ot={}",
                     self.api_url,
                     cont,
                     last_synced.trim(),
@@ -173,6 +173,33 @@ impl Greader {
         db.mark_article_as_read(article_id).unwrap();
         Ok(())
     }
+
+    pub fn mark_articles_as_read_except(&self) -> Result<()> {
+        let output = Command::new("curl")
+            .args([
+                "-s",
+                "-H",
+                &format!("Authorization:GoogleLogin auth={}", self.cltoken),
+                &format!("{}/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/reading-list&xt=user/-/state/com.google/read&n=5000&r=n", self.api_url),
+            ])
+            .output()?;
+        let out = String::from_utf8(output.stdout).unwrap();
+        let unread_items: UnreadItemIds = serde_json::from_str(&out).unwrap();
+        let mut ids = vec![];
+        for item in unread_items.item_refs {
+            ids.push(item.id);
+        }
+        let db = DB::new();
+        db.mark_articles_as_read_except(ids).unwrap();
+        Ok(())
+    }
+
+    pub fn sync(&self) -> Result<()> {
+        self.get_subscription_list()?;
+        self.get_unred_articles_content(None)?;
+        self.mark_articles_as_read_except()?;
+        Ok(())
+    }
 }
 
 fn get_last_sync_time() -> String {
@@ -259,4 +286,17 @@ pub struct ItemOrigin {
     pub stream_id: String,
     pub html_url: String,
     pub title: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadItemId {
+    id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadItemIds {
+    item_refs: Vec<UnreadItemId>,
+    continuation: Option<String>,
 }

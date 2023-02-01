@@ -99,8 +99,7 @@ impl UI {
                 .with_user_data(|user_data: &mut UserData| user_data.category_list.clone())
                 .unwrap();
 
-            greader.get_subscription_list().unwrap();
-            greader.get_unred_articles_content(None).unwrap();
+            greader.sync().unwrap();
 
             siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
                 /* let selected_row = tree.row().unwrap();
@@ -141,6 +140,7 @@ impl UI {
                 });
 
                 siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
+                    // TODO: also update the category unread count
                     let selected_row = tree.row().unwrap();
                     let item = tree.borrow_item_mut(selected_row).unwrap();
                     if let Some(count) = item.unread_count {
@@ -196,7 +196,7 @@ fn build_tree(cat_list: Vec<Category>, tree: &mut TreeView<TreeEntry>) {
     tree.insert_item(
         TreeEntry {
             id: String::from("dummy"),
-            title: String::from("Dummy"),
+            title: String::from(""),
             unread_count: None,
         },
         Placement::After,
