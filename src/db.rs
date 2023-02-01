@@ -247,11 +247,50 @@ impl DB {
             FROM
                 articles
             WHERE
-                feed_id = :feed_id
+                feed_id = :feed_id AND unread = 1
             ORDER BY pub_date DESC",
         )?;
 
         let article_iter = stmt.query_map(&[(":feed_id", feed_id)], |row| {
+            let unread: i8 = row.get(5).unwrap();
+            Ok(Article::new(
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                unread,
+                row.get(6)?,
+                row.get(7)?,
+            ))
+        })?;
+        let mut articles = Vec::new();
+        for article in article_iter {
+            articles.push(article?);
+        }
+        Ok(articles)
+    }
+
+    pub fn get_articles_for_category(&self, category_id: &str) -> Result<Vec<Article>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                a.id      ,
+                a.link    ,
+                a.title       ,
+                a.description ,
+                a.content     ,
+                a.unread      ,
+                a.feed_id     ,
+                a.pub_date
+            FROM
+                articles a
+            INNER JOIN feeds f ON a.feed_id = f.feed_id
+            INNER JOIN categories c ON f.category_id = c.id
+            WHERE c.id = :category_id AND a.unread = 1
+            ORDER BY a.pub_date DESC",
+        )?;
+
+        let article_iter = stmt.query_map(&[(":category_id", category_id)], |row| {
             let unread: i8 = row.get(5).unwrap();
             Ok(Article::new(
                 row.get(0)?,

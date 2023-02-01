@@ -19,6 +19,7 @@ pub struct UI {
     siv: CursiveRunnable,
 }
 
+#[derive(Clone)]
 struct UserData {
     category_list: Vec<Category>,
     greader: Greader,
@@ -62,27 +63,30 @@ impl UI {
         });
 
         let mut tree = TreeView::<TreeEntry>::new();
+        tree.set_on_collapse(tree_on_collapse);
         tree.set_on_submit(move |siv: &mut Cursive, row| {
             let db = DB::new();
             let value = siv.call_on_name("tree", move |tree: &mut TreeView<TreeEntry>| {
                 tree.borrow_item(row).unwrap().clone()
             });
-            let v = value.unwrap_or(TreeEntry::default());
-            // FIXME: is it ok to create new db connection on each submit?
-            // Should it be closed somehow?
-            let articles = db.get_articles_for_feed(&v.id).unwrap();
+            if let Some(v) = value {
+                let articles = db.get_articles_for_feed(&v.id).unwrap();
 
-            siv.call_on_name("panel", move |view: &mut Dialog| {
-                view.set_title(v.title);
-            });
-            siv.call_on_name("content", move |view: &mut SelectView<Article>| {
-                view.clear();
-                for article in articles {
-                    view.add_item(article.draw(), article);
-                }
-            });
+                // FIXME: Find a way how to update feed unread count when the article was read from
+                // focused category
+                let len = articles
+                    .iter()
+                    .filter(|a| a.unread())
+                    .collect::<Vec<_>>()
+                    .len();
 
-            siv.focus_name("content").unwrap();
+                siv.call_on_name("tree", move |tree: &mut TreeView<TreeEntry>| {
+                    let item = tree.borrow_item_mut(row).unwrap();
+                    item.unread_count = Some(len.try_into().unwrap());
+                });
+
+                draw_articles(articles, siv, &v.title);
+            }
         });
 
         let cat_list = self
@@ -92,21 +96,18 @@ impl UI {
         build_tree(cat_list, &mut tree);
 
         self.siv.set_global_callback('R', move |siv| {
-            let greader = siv
-                .with_user_data(|user_data: &mut UserData| user_data.greader.clone())
-                .unwrap();
-            let cat_list = siv
-                .with_user_data(|user_data: &mut UserData| user_data.category_list.clone())
+            let user_data = siv
+                .with_user_data(|user_data: &mut UserData| user_data.clone())
                 .unwrap();
 
-            greader.sync().unwrap();
+            user_data.greader.sync().unwrap();
 
             siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
                 /* let selected_row = tree.row().unwrap();
                 let item = tree.borrow_item_mut(selected_row).unwrap();
                 item.unread_count = Some(0); */
                 tree.clear();
-                build_tree(cat_list, tree);
+                build_tree(user_data.category_list, tree);
                 // tree.set_collapsed(selected_row, false);
                 // tree.set_selected_row(selected_row);
             });
@@ -140,13 +141,15 @@ impl UI {
                 });
 
                 siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
-                    // TODO: also update the category unread count
                     let selected_row = tree.row().unwrap();
-                    let item = tree.borrow_item_mut(selected_row).unwrap();
-                    if let Some(count) = item.unread_count {
-                        if count > 0 {
-                            item.unread_count = Some(item.unread_count.unwrap() - 1);
-                        }
+                    decrease_unread_count(tree, selected_row);
+                });
+
+                siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
+                    let selected_row = tree.row().unwrap();
+                    let parent = tree.item_parent(selected_row);
+                    if let Some(p) = parent {
+                        decrease_unread_count(tree, p);
                     }
                 });
             }
@@ -245,4 +248,40 @@ fn content_select_up(s: &mut Cursive) {
     s.call_on_name("content", move |view: &mut SelectView<Article>| {
         view.select_up(1)
     });
+}
+
+fn tree_on_collapse(siv: &mut Cursive, row: usize, collapsed: bool, _children: usize) {
+    if !collapsed {
+        let db = DB::new();
+        let value = siv.call_on_name("tree", move |tree: &mut TreeView<TreeEntry>| {
+            tree.borrow_item(row).unwrap().clone()
+        });
+        let v = value.unwrap_or(TreeEntry::default());
+        let articles = db.get_articles_for_category(&v.id).unwrap();
+
+        draw_articles(articles, siv, &v.title);
+    }
+}
+
+fn draw_articles(articles: Vec<Article>, siv: &mut Cursive, title: &str) {
+    siv.call_on_name("panel", move |view: &mut Dialog| {
+        view.set_title(title);
+    });
+    siv.call_on_name("content", move |view: &mut SelectView<Article>| {
+        view.clear();
+        for article in articles {
+            view.add_item(article.draw(), article);
+        }
+    });
+
+    siv.focus_name("content").unwrap();
+}
+
+fn decrease_unread_count(tree: &mut TreeView<TreeEntry>, row: usize) {
+    let item = tree.borrow_item_mut(row).unwrap();
+    if let Some(count) = item.unread_count {
+        if count > 0 {
+            item.unread_count = Some(item.unread_count.unwrap() - 1);
+        }
+    }
 }

@@ -10,7 +10,7 @@ use std::process::Command;
 
 const TOKEN_PREFIX: &str = "Auth";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Greader {
     cltoken: String,
     api_url: String,
@@ -180,7 +180,7 @@ impl Greader {
                 "-s",
                 "-H",
                 &format!("Authorization:GoogleLogin auth={}", self.cltoken),
-                &format!("{}/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/reading-list&xt=user/-/state/com.google/read&n=5000&r=n", self.api_url),
+                &format!("{}/reader/api/0/stream/items/ids?output=json&s=user/-/state/com.google/reading-list&xt=user/-/state/com.google/read&n=10000&r=n", self.api_url),
             ])
             .output()?;
         let out = String::from_utf8(output.stdout).unwrap();
