@@ -174,6 +174,26 @@ impl Greader {
         Ok(())
     }
 
+    pub fn mark_article_as_unread(&self, article_id: &str) -> Result<()> {
+        Command::new("curl")
+            .args([
+                "-s",
+                "-H",
+                &format!("Authorization:GoogleLogin auth={}", self.cltoken),
+                "-X",
+                "POST",
+                &format!("{}/reader/api/0/edit-tag", self.api_url),
+                "-d",
+                &format!("i={}", article_id),
+                "-d",
+                "r=user/-/state/com.google/read",
+            ])
+            .output()?;
+        let db = DB::new();
+        db.mark_article_as_unread(article_id).unwrap();
+        Ok(())
+    }
+
     pub fn mark_articles_as_read_except(&self) -> Result<()> {
         let output = Command::new("curl")
             .args([

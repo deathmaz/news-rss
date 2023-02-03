@@ -466,6 +466,19 @@ impl DB {
         Ok(())
     }
 
+    pub fn mark_article_as_unread(&self, article_id: &str) -> Result<()> {
+        let mut stmt = self.conn.prepare(
+            "UPDATE
+                articles
+            SET
+                unread = 1
+            WHERE
+                id = ?",
+        )?;
+        stmt.execute([article_id])?;
+        Ok(())
+    }
+
     pub fn add_unread_id(&self, id: &str) -> Result<()> {
         self.conn.execute(
             "INSERT INTO unread_articles (

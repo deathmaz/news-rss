@@ -122,23 +122,8 @@ impl UI {
         select.set_on_submit(|siv: &mut Cursive, item| {
             if item.unread() {
                 let db = DB::new();
-                let greader = siv
-                    .with_user_data(|user_data: &mut UserData| user_data.greader.clone())
-                    .unwrap();
-                greader.mark_article_as_read(&item.id).unwrap();
 
-                siv.call_on_name("content", move |view: &mut SelectView<Article>| {
-                    let id = view.selected_id().unwrap();
-                    view.remove_item(id);
-                    let article = db.get_article(item.id.clone()).unwrap();
-                    view.insert_item(id, article.draw(), article.clone());
-
-                    if id == 0 {
-                        view.select_up(1);
-                    } else {
-                        view.select_down(1);
-                    }
-                });
+                mark_article_as_read(siv, &item.id, db);
 
                 siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
                     let selected_row = tree.row().unwrap();
@@ -180,7 +165,8 @@ impl UI {
                         .content(
                             OnEventView::new(select.with_name("content").scrollable())
                                 .on_event('j', content_select_down)
-                                .on_event('k', content_select_up),
+                                .on_event('k', content_select_up)
+                                .on_event('N', toggle_article_read),
                         )
                         .title("Content bar")
                         .with_name("panel")
@@ -284,4 +270,53 @@ fn decrease_unread_count(tree: &mut TreeView<TreeEntry>, row: usize) {
             item.unread_count = Some(item.unread_count.unwrap() - 1);
         }
     }
+}
+
+fn toggle_article_read(s: &mut Cursive) {
+    let selected_item = s
+        .call_on_name("content", move |view: &mut SelectView<Article>| {
+            view.selection().unwrap()
+        })
+        .unwrap();
+    let db = DB::new();
+    if selected_item.unread() {
+        mark_article_as_read(s, &selected_item.id, db);
+    } else {
+        mark_article_as_unread(s, &selected_item.id, db);
+    }
+
+    content_select_down(s);
+}
+
+fn refresh_selected_article(siv: &mut Cursive, item_id: &str, db: DB) {
+    siv.call_on_name("content", move |view: &mut SelectView<Article>| {
+        let id = view.selected_id().unwrap();
+        view.remove_item(id);
+        let article = db.get_article(item_id.to_string()).unwrap();
+        view.insert_item(id, article.draw(), article.clone());
+
+        if id == 0 {
+            view.select_up(1);
+        } else {
+            view.select_down(1);
+        }
+    });
+}
+
+fn mark_article_as_read(siv: &mut Cursive, item_id: &str, db: DB) {
+    let greader = siv
+        .with_user_data(|user_data: &mut UserData| user_data.greader.clone())
+        .unwrap();
+    greader.mark_article_as_read(item_id).unwrap();
+
+    refresh_selected_article(siv, item_id, db);
+}
+
+fn mark_article_as_unread(siv: &mut Cursive, item_id: &str, db: DB) {
+    let greader = siv
+        .with_user_data(|user_data: &mut UserData| user_data.greader.clone())
+        .unwrap();
+    greader.mark_article_as_unread(item_id).unwrap();
+
+    refresh_selected_article(siv, item_id, db);
 }
