@@ -130,7 +130,7 @@ impl Greader {
                 pub_date: None,
                 // FIXME: store it as cat_id1,cat_id2,cat_id3?
                 category_id: categories[0].id.clone(),
-                feed_id: sub.id,
+                id: sub.id,
             })
             .unwrap();
         }

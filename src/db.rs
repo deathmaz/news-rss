@@ -17,46 +17,49 @@ impl DB {
     }
 
     pub fn create_db(&self) -> Result<()> {
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS unread_articles (
-                id              TEXT PRIMARY KEY
-            )",
-            (),
-        )?;
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS categories (
-                id              TEXT PRIMARY KEY,
-                label           TEXT
-            )",
-            (),
-        )?;
-        self.conn.execute(
-            // TODO: remove `id` and use only `feed_id`?
-            "CREATE TABLE IF NOT EXISTS feeds (
-                id              INTEGER PRIMARY KEY,
-                feed_id         TEXT NOT NULL UNIQUE,
-                title           TEXT,
-                rss_link        TEXT NOT NULL UNIQUE,
-                category_id     TEXT NOT NULL,
-                link            TEXT NOT NULL,
-                description     TEXT,
+        self.conn.execute_batch(
+            "
+            BEGIN;
+            CREATE TABLE IF NOT EXISTS unread_articles (
+                id  VARCHAR(1024) PRIMARY KEY
+            );
+             CREATE INDEX IF NOT EXISTS idx_unread_articles_ids ON unread_articles (id);
+
+            CREATE TABLE IF NOT EXISTS categories (
+                id              VARCHAR(1024) PRIMARY KEY,
+                label           VARCHAR(1024)
+            );
+            CREATE INDEX IF NOT EXISTS idx_categories_ids ON categories (id);
+
+            CREATE TABLE IF NOT EXISTS feeds (
+                id              VARCHAR(1024) PRIMARY KEY,
+                title           VARCHAR(1024),
+                rss_link        VARCHAR(1024) NOT NULL UNIQUE,
+                category_id     VARCHAR(1024) NOT NULL,
+                link            VARCHAR(1024) NOT NULL,
+                description     VARCHAR(1024),
                 pub_date        INTEGER
-            )",
-            (),
-        )?;
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS articles (
-                id            TEXT PRIMARY KEY,
+            );
+            CREATE INDEX IF NOT EXISTS idx_feeds_ids ON feeds (id);
+            CREATE INDEX IF NOT EXISTS idx_feeds_category_ids ON feeds (category_id);
+
+            CREATE TABLE IF NOT EXISTS articles (
+                id            VARCHAR(1024) PRIMARY KEY,
                 short_id      INTEGER UNIQUE,
-                link          TEXT,
-                title         TEXT,
+                link          VARCHAR(1024),
+                title         VARCHAR(1024),
                 description   TEXT,
                 content       TEXT,
                 unread        INTEGER NOT NULL,
-                feed_id       TEXT NOT NULL,
+                feed_id       VARCHAR(1024) NOT NULL,
                 pub_date      INTEGER
-            )",
-            (),
+            );
+            CREATE INDEX IF NOT EXISTS idx_articles_ids ON articles (id);
+            CREATE INDEX IF NOT EXISTS idx_articles_feed_ids ON articles (feed_id);
+            CREATE INDEX IF NOT EXISTS idx_articles_short_ids ON articles (short_id);
+
+            COMMIT;
+        ",
         )?;
         Ok(())
     }
@@ -70,7 +73,7 @@ impl DB {
                 description ,
                 pub_date    ,
                 category_id,
-                feed_id
+                id
             ) values (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7
             )",
@@ -81,13 +84,9 @@ impl DB {
                 params.description,
                 String::from(""),
                 params.category_id,
-                params.feed_id,
+                params.id,
             ],
         )?;
-
-        /* for article in channel.items() {
-            self.create_article(article, rss_link)?;
-        } */
         Ok(())
     }
 
@@ -134,8 +133,8 @@ impl DB {
                     COUNT(*)
                 FROM articles a
                 INNER JOIN feeds f ON
-                    a.feed_id  = f.feed_id
-                WHERE f.feed_id = :feed_id AND a.unread = 1",
+                    a.feed_id  = f.id
+                WHERE f.id = :feed_id AND a.unread = 1",
         )?;
         let count = stmt.query_row(&[(":feed_id", feed_id)], |row| {
             Ok(UnreadCount { count: row.get(0)? })
@@ -149,7 +148,7 @@ impl DB {
             "
                 SELECT COUNT(*)
                 FROM articles a
-                INNER JOIN feeds f ON a.feed_id = f.feed_id
+                INNER JOIN feeds f ON a.feed_id = f.id
                 INNER JOIN categories c ON f.category_id = c.id
                 WHERE c.id = :category_id AND a.unread = 1",
         )?;
@@ -284,7 +283,7 @@ impl DB {
                 a.pub_date
             FROM
                 articles a
-            INNER JOIN feeds f ON a.feed_id = f.feed_id
+            INNER JOIN feeds f ON a.feed_id = f.id
             INNER JOIN categories c ON f.category_id = c.id
             WHERE c.id = :category_id AND a.unread = 1
             ORDER BY a.pub_date DESC",
@@ -396,7 +395,6 @@ impl DB {
                 link       ,
                 description,
                 pub_date,
-                feed_id,
                 category_id
             FROM
                 feeds
@@ -405,16 +403,14 @@ impl DB {
         )?;
         let feeds_iter = stmt.query_map(&[(":category_id", category_id)], |row| {
             let pub_date: Option<i64> = row.get(5).unwrap_or(None);
-            let id: i64 = row.get(0).unwrap();
             Ok(Feed::new(
-                id,
+                row.get(0)?,
                 row.get(1)?,
                 row.get(2)?,
                 row.get(3)?,
                 row.get(4)?,
                 pub_date,
                 row.get(6)?,
-                row.get(7)?,
             ))
         })?;
         let mut feeds = Vec::new();
@@ -424,7 +420,7 @@ impl DB {
         Ok(feeds)
     }
 
-    pub fn get_feed(&self, rss_link: &str) -> Result<Feed> {
+    /* pub fn get_feed(&self, rss_link: &str) -> Result<Feed> {
         let mut stmt = self.conn.prepare(
             "
             SELECT
@@ -434,7 +430,6 @@ impl DB {
                 link,
                 description,
                 pub_date,
-                feed_id,
                 category_id
             FROM
                 feeds
@@ -456,7 +451,7 @@ impl DB {
             ))
         })?;
         Ok(feed)
-    }
+    } */
 
     pub fn mark_article_as_read(&self, article_id: &str) -> Result<()> {
         let mut stmt = self.conn.prepare(
@@ -506,7 +501,7 @@ impl DB {
 }
 
 pub struct CreateFeedParams {
-    pub feed_id: String,
+    pub id: String,
     pub title: String,
     pub rss_link: String,
     pub link: String,

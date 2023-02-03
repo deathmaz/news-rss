@@ -172,7 +172,7 @@ impl UI {
                         .title("Left sidebar")
                         .with_name("tree_panel")
                         .full_height()
-                        .max_width(50)
+                        .max_width(40)
                         .min_width(20),
                 )
                 .child(
@@ -219,10 +219,10 @@ fn build_tree(cat_list: Vec<Category>, tree: &mut TreeView<TreeEntry>) {
         );
         let feeds = db.get_feeds_for_category(&category.id).unwrap();
         for feed in feeds {
-            let unread_count = db.get_feed_unread_count(feed.feed_id.as_str()).unwrap();
+            let unread_count = db.get_feed_unread_count(feed.id.as_str()).unwrap();
             tree.insert_item(
                 TreeEntry {
-                    id: feed.feed_id,
+                    id: feed.id,
                     title: feed.title,
                     unread_count: Some(unread_count),
                 },
