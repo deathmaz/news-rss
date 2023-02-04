@@ -84,6 +84,7 @@ impl Greader {
                 unread: 1,
                 feed_id: item.origin.stream_id,
                 pub_date: item.published,
+                author: item.author,
             })
             .unwrap();
         }
@@ -288,6 +289,7 @@ pub struct Item {
     canonical: Vec<ItemCanonical>,
     categories: Vec<String>,
     origin: ItemOrigin,
+    author: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

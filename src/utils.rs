@@ -1,5 +1,5 @@
 use crate::{category::Category, db::DB};
-use chrono::DateTime;
+use chrono::{Local, TimeZone};
 use directories::UserDirs;
 use rss::Channel;
 use std::io;
@@ -28,8 +28,8 @@ pub fn fetch_page(url: String) -> io::Result<Output> {
     Command::new("curl").arg("-s").arg("-S").arg(url).output()
 }
 
-pub fn formatted_pub_date(date: &str) -> String {
-    let parsed = DateTime::parse_from_rfc2822(date).unwrap();
+pub fn formatted_pub_date(date: i64) -> String {
+    let parsed = Local.timestamp_opt(date, 0).unwrap();
     format!("{}", parsed.format("%d/%m/%Y %H:%M"))
 }
 

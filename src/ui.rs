@@ -3,9 +3,18 @@ use crate::db::DB;
 use crate::greader::Category;
 use crate::greader::Greader;
 use crate::tree_entry::TreeEntry;
+use crate::utils::formatted_pub_date;
+use cursive::theme::BaseColor;
+use cursive::theme::Color;
+use cursive::theme::Effect;
+use cursive::theme::Style;
 use cursive::theme::{BorderStyle, Palette};
 use cursive::traits::With;
+use cursive::utils::markup::StyledString;
+use cursive::utils::span::SpannedString;
+use cursive::views::DummyView;
 use cursive::views::OnEventView;
+use cursive::views::TextView;
 use cursive::{
     traits::*,
     views::{Dialog, LinearLayout, Panel, SelectView},
@@ -122,31 +131,46 @@ impl UI {
         select.set_on_submit(|siv: &mut Cursive, item| {
             if item.unread() {
                 let db = DB::new();
-
                 mark_article_as_read(siv, &item.id, db);
-
-                siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
-                    let selected_row = tree.row().unwrap();
-                    decrease_unread_count(tree, selected_row);
-                });
-
-                siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
-                    let selected_row = tree.row().unwrap();
-                    let parent = tree.item_parent(selected_row);
-                    if let Some(p) = parent {
-                        decrease_unread_count(tree, p);
-                    }
-                });
             }
-
-            siv.add_layer(
-                // Dialog::info(selected_id.unwrap().to_string())
-                Dialog::around(cursive_markup::MarkupView::html(&item.content).scrollable())
-                    .button("Close", |s| {
-                        s.pop_layer();
-                    })
-                    .title(item.title.as_str().truncate_ellipse(70))
-                    .max_width(80),
+            let db = DB::new();
+            let article_details = db.get_article_details(&item.id).unwrap();
+            siv.add_fullscreen_layer(
+                Dialog::around(
+                    LinearLayout::vertical()
+                        .child(TextView::new(article_details_item(
+                            "Feed: ",
+                            &article_details.feed_title,
+                        )))
+                        .child(TextView::new(article_details_item(
+                            "Title: ",
+                            &article_details.title,
+                        )))
+                        .child(if article_details.author.is_empty() {
+                            TextView::new("")
+                        } else {
+                            TextView::new(article_details_item("Author: ", &article_details.author))
+                        })
+                        .child(TextView::new(article_details_item(
+                            "Date: ",
+                            &formatted_pub_date(article_details.pub_date),
+                        )))
+                        .child(TextView::new(article_details_item(
+                            "Link: ",
+                            &article_details.link,
+                        )))
+                        .child(DummyView)
+                        .child(
+                            cursive_markup::MarkupView::html(&item.content)
+                                .max_width(80)
+                                .scrollable(),
+                        ),
+                )
+                .button("Close", |s| {
+                    s.pop_layer();
+                })
+                .title(item.title.as_str().truncate_ellipse(70))
+                .full_screen(),
             )
         });
 
@@ -253,14 +277,19 @@ fn draw_articles(articles: Vec<Article>, siv: &mut Cursive, title: &str) {
     siv.call_on_name("panel", move |view: &mut Dialog| {
         view.set_title(title);
     });
-    siv.call_on_name("content", move |view: &mut SelectView<Article>| {
+    let articles_len = siv.call_on_name("content", move |view: &mut SelectView<Article>| {
         view.clear();
+        let articles_len = articles.len();
         for article in articles {
             view.add_item(article.draw(), article);
         }
+
+        articles_len
     });
 
-    siv.focus_name("content").unwrap();
+    if articles_len.unwrap() > 0 {
+        siv.focus_name("content").unwrap();
+    }
 }
 
 fn decrease_unread_count(tree: &mut TreeView<TreeEntry>, row: usize) {
@@ -310,6 +339,19 @@ fn mark_article_as_read(siv: &mut Cursive, item_id: &str, db: DB) {
     greader.mark_article_as_read(item_id).unwrap();
 
     refresh_selected_article(siv, item_id, db);
+
+    siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
+        let selected_row = tree.row().unwrap();
+        decrease_unread_count(tree, selected_row);
+    });
+
+    siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
+        let selected_row = tree.row().unwrap();
+        let parent = tree.item_parent(selected_row);
+        if let Some(p) = parent {
+            decrease_unread_count(tree, p);
+        }
+    });
 }
 
 fn mark_article_as_unread(siv: &mut Cursive, item_id: &str, db: DB) {
@@ -319,4 +361,16 @@ fn mark_article_as_unread(siv: &mut Cursive, item_id: &str, db: DB) {
     greader.mark_article_as_unread(item_id).unwrap();
 
     refresh_selected_article(siv, item_id, db);
+}
+
+fn article_details_item(label: &str, value: &str) -> SpannedString<Style> {
+    let mut feed = StyledString::styled(
+        label,
+        Style::from(Color::Light(BaseColor::Cyan)).combine(Effect::Bold),
+    );
+    feed.append(StyledString::styled(
+        value,
+        Style::from(Color::Dark(BaseColor::Blue)).combine(Effect::Bold),
+    ));
+    feed
 }

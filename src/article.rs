@@ -1,4 +1,4 @@
-use chrono::{Local, TimeZone};
+use crate::utils;
 
 #[derive(Debug, Clone)]
 pub struct Article {
@@ -40,11 +40,10 @@ impl Article {
     }
 
     pub fn draw(&self) -> String {
-        let pub_date = Local.timestamp_opt(self.pub_date, 0).unwrap();
         let unread = if self.unread() { "N" } else { " " };
         format!(
             "{} {} {}",
-            pub_date.format("%d/%m/%Y %H:%M"),
+            utils::formatted_pub_date(self.pub_date),
             unread,
             self.title,
         )

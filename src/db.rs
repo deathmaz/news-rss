@@ -52,7 +52,8 @@ impl DB {
                 content       TEXT,
                 unread        INTEGER NOT NULL,
                 feed_id       VARCHAR(1024) NOT NULL,
-                pub_date      INTEGER
+                pub_date      INTEGER,
+                author        VARCHAR(1024)
             );
             CREATE INDEX IF NOT EXISTS idx_articles_ids ON articles (id);
             CREATE INDEX IF NOT EXISTS idx_articles_feed_ids ON articles (feed_id);
@@ -174,9 +175,10 @@ impl DB {
                 content    ,
                 unread     ,
                 feed_id    ,
-                pub_date
+                pub_date   ,
+                author
             ) values (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10
             )",
             [
                 params.id,
@@ -188,6 +190,7 @@ impl DB {
                 String::from("1"),
                 params.feed_id,
                 params.pub_date.to_string(),
+                params.author.unwrap_or("".to_string()),
             ],
         )?;
         Ok(())
@@ -511,6 +514,32 @@ impl DB {
         stmt.execute([])?;
         Ok(())
     }
+
+    pub fn get_article_details(&self, article_id: &str) -> Result<ArticleDetails> {
+        let mut stmt = self.conn.prepare(
+            "
+                SELECT
+                    a.title,
+                    a.link,
+                    a.author,
+                    a.pub_date,
+                    f.title AS feed_title
+                FROM articles a
+                INNER JOIN feeds f ON
+                    a.feed_id = f.id
+                WHERE a.id = :article_id",
+        )?;
+        let article_details = stmt.query_row(&[(":article_id", &article_id)], |row| {
+            Ok(ArticleDetails {
+                title: row.get(0)?,
+                link: row.get(1)?,
+                author: row.get(2)?,
+                pub_date: row.get(3)?,
+                feed_title: row.get(4)?,
+            })
+        })?;
+        Ok(article_details)
+    }
 }
 
 pub struct CreateFeedParams {
@@ -537,8 +566,17 @@ pub struct CreateArticleParams {
     pub unread: i8,
     pub feed_id: String,
     pub pub_date: i64,
+    pub author: Option<String>,
 }
 
 pub struct UnreadCount {
     count: i64,
+}
+
+pub struct ArticleDetails {
+    pub title: String,
+    pub link: String,
+    pub author: String,
+    pub pub_date: i64,
+    pub feed_title: String,
 }
