@@ -190,6 +190,8 @@ impl UI {
                             OnEventView::new(select.with_name("content").scrollable())
                                 .on_event('j', content_select_down)
                                 .on_event('k', content_select_up)
+                                .on_event('s', sort_asc)
+                                .on_event('S', sort_desc)
                                 .on_event('N', toggle_article_read),
                         )
                         .title("Content bar")
@@ -260,6 +262,18 @@ fn content_select_up(s: &mut Cursive) {
     });
 }
 
+fn sort_asc(s: &mut Cursive) {
+    s.call_on_name("content", move |view: &mut SelectView<Article>| {
+        view.sort_by(|a1, a2| a1.pub_date.cmp(&a2.pub_date));
+    });
+}
+
+fn sort_desc(s: &mut Cursive) {
+    s.call_on_name("content", move |view: &mut SelectView<Article>| {
+        view.sort_by(|a1, a2| a2.pub_date.cmp(&a1.pub_date));
+    });
+}
+
 fn tree_on_collapse(siv: &mut Cursive, row: usize, collapsed: bool, _children: usize) {
     if !collapsed {
         let db = DB::new();
@@ -299,6 +313,11 @@ fn decrease_unread_count(tree: &mut TreeView<TreeEntry>, row: usize) {
             item.unread_count = Some(item.unread_count.unwrap() - 1);
         }
     }
+}
+
+fn increase_unread_count(tree: &mut TreeView<TreeEntry>, row: usize) {
+    let item = tree.borrow_item_mut(row).unwrap();
+    item.unread_count = Some(item.unread_count.unwrap() + 1);
 }
 
 fn toggle_article_read(s: &mut Cursive) {
@@ -361,6 +380,19 @@ fn mark_article_as_unread(siv: &mut Cursive, item_id: &str, db: DB) {
     greader.mark_article_as_unread(item_id).unwrap();
 
     refresh_selected_article(siv, item_id, db);
+
+    siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
+        let selected_row = tree.row().unwrap();
+        increase_unread_count(tree, selected_row);
+    });
+
+    siv.call_on_name("tree", |tree: &mut TreeView<TreeEntry>| {
+        let selected_row = tree.row().unwrap();
+        let parent = tree.item_parent(selected_row);
+        if let Some(p) = parent {
+            increase_unread_count(tree, p);
+        }
+    });
 }
 
 fn article_details_item(label: &str, value: &str) -> SpannedString<Style> {
