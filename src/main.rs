@@ -13,9 +13,9 @@ fn main() {
             DB::new()
                 .create_db()
                 .expect("Something went wrong while creating DB");
-            let greader = Greader::login(config).unwrap();
+            let greader = Greader::login(config.clone()).unwrap();
             let mut ui = UI::new();
-            ui.create(greader);
+            ui.create(greader, config);
         }
         Err(error) => println!(
             "Something went wrong while reading config.toml file:\n{:#}",

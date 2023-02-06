@@ -45,3 +45,7 @@ pub fn get_config_dir() -> String {
         .display()
         .to_string()
 }
+
+pub fn is_macos() -> bool {
+    std::env::consts::OS == "macos"
+}

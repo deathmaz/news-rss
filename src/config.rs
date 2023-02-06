@@ -1,11 +1,12 @@
 use serde::Deserialize;
 use std::{error::Error, fs};
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct Config {
     pub fresh_rss_api_url: Option<String>,
     pub fresh_rss_api_user: Option<String>,
     pub fresh_rss_api_password: Option<String>,
+    pub browser: Option<String>,
 }
 
 impl Config {

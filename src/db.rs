@@ -517,6 +517,7 @@ impl DB {
 
     pub fn get_article_details(&self, article_id: &str) -> Result<ArticleDetails> {
         let mut stmt = self.conn.prepare(
+            // TODO: get also content
             "
                 SELECT
                     a.title,
